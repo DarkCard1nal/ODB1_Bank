@@ -72,7 +72,7 @@ Design and implementation of the Bank's information system (IS) model.
    - `creation_date`: Дата відкриття рахунку
    - `client_id` (FK): Ідентифікатор клієнта (зв'язок з таблицею Client)
 
-3. **Transaction (Операція)**:
+3. **Transactions (Операція)**:
 
    - `transaction_id` (PK): Унікальний ідентифікатор операції
    - `account_id` (FK): Ідентифікатор рахунку (зв'язок з таблицею Account)
@@ -102,7 +102,7 @@ Design and implementation of the Bank's information system (IS) model.
 #### **Зв'язки між сутностями:**
 
 - Один **Client** може мати декілька **Account**.
-- Один **Account** може мати декілька **Transaction**.
+- Один **Account** може мати декілька **Transactions**.
 - Один **Account** може мати декілька нарахувань **Interest**.
 - **CurrencyRate** зберігає курс обміну між валютами на конкретну дату.
 
@@ -129,7 +129,7 @@ Design and implementation of the Bank's information system (IS) model.
 
 2.	Отримати всі транзакції, виконані для рахунків цього клієнта:
 
-`((Account WHERE client_id = ′C1′) JOIN Transaction )[transaction_id, account_id, transaction_type, amount, transaction_date]`
+`((Account WHERE client_id = ′C1′) JOIN Transactions )[transaction_id, account_id, transaction_type, amount, transaction_date]`
 
 
 Докладніше:
@@ -140,7 +140,7 @@ Design and implementation of the Bank's information system (IS) model.
 
 2.	З'єднати таблицю рахунків із таблицею транзакцій за `account_id`:
 
-`T2 := T1 JOIN Transaction `
+`T2 := T1 JOIN Transactions `
 
 3.	Проекція результату для виводу всіх атрибутів транзакцій:
 
