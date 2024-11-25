@@ -75,9 +75,9 @@ Design and implementation of the Bank's information system (IS) model.
 3. **Transactions (Операція)**:
 
    - `transaction_id` (PK): Унікальний ідентифікатор операції
-   - `account_id` (FK): Ідентифікатор рахунку (зв'язок з таблицею Account)
    - `client_id` (FK): Ідентифікатор клієнта (зв'язок з таблицею Client)
-   - `related_account_id` (FK): Ідентифікатор рахунку, з яким пов'язана операція (для конвертації валют)
+   - `account_from_id` (FK): Ідентифікатор рахунку (зв'язок з таблицею Account)
+   - `account_to_id` (FK): Ідентифікатор рахунку, з яким пов'язана операція (для конвертації валют)
    - `currency_rate_id` (FK): Унікальний ідентифікатор курсу
    - `transaction_type`: Тип операції (Deposit, Withdrawal, Interest, Exchange)
    - `amount`: Сума операції
@@ -129,7 +129,7 @@ Design and implementation of the Bank's information system (IS) model.
 
 2.	Отримати всі транзакції, виконані для рахунків цього клієнта:
 
-`((Account WHERE client_id = ′C1′) JOIN Transactions )[transaction_id, account_id, transaction_type, amount, transaction_date]`
+`((Account WHERE client_id = ′C1′) JOIN Transactions )[transaction_id, account_from_id, account_to_id, transaction_type, amount, transaction_date]`
 
 
 Докладніше:
@@ -144,6 +144,6 @@ Design and implementation of the Bank's information system (IS) model.
 
 3.	Проекція результату для виводу всіх атрибутів транзакцій:
 
-`T3 := T2[transaction_id, account_id, transaction_type, amount, transaction_date] `
+`T3 := T2[transaction_id, account_from_id, account_to_id, transaction_type, amount, transaction_date] `
 
 У результаті отримаємо всі транзакції, виконані для рахунків клієнта з `client_id = 'C1'`.
