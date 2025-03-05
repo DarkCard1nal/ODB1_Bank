@@ -9,7 +9,7 @@ INSERT INTO Account (client_id, currency, balance)
 VALUES
 (1, 'USD', 1500.00),
 (1, 'UAH', 2000.00),
-(2, 'UAH', 5000.00);
+(2, 'UAH', 1000.00);
 
 -- Додавання записів у таблицю CurrencyRate
 INSERT INTO CurrencyRate (currency_from, currency_to, rate)
@@ -80,6 +80,20 @@ FROM
 	Account a_from
 WHERE 
 	a_from.account_id = 2; -- ID рахунку відправника
+
+INSERT INTO Transactions (client_id, account_from_id, account_to_id, currency_rate_id, transaction_type, amount, currency)
+SELECT 
+	1 AS client_id, -- ID клієнта
+	1 AS account_from_id, -- Рахунок, з якого виконується транзакція
+	NULL AS account_to_id, -- Поле залишаємо NULL, якщо зняття коштів
+	NULL AS currency_rate_id, -- Поле залишаємо NULL, якщо курс не потрібен
+	'Withdrawal' AS transaction_type, -- Тип транзакції
+	500.00 AS amount, -- Сума
+	a_from.currency AS currency -- Валюта з рахунку відправника
+FROM 
+	Account a_from
+WHERE 
+	a_from.account_id = 1; -- Вказуємо рахунок відправника
 
 -- Важливо оновити баланси після кожної створеної транзакції (приклад в UPDATE.SQL)!
 
