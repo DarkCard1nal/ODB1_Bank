@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  mssql:
+    build: .
+    container_name: bunk-mssql
+    ports:
+      - "1433:1433"
+    volumes:
+      - bunk-mssql-storage:/var/opt/mssql
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "StrongPass123!"
+    restart: always
+
+volumes:
+  bunk-mssql-storage:
+    name: bunk-mssql-storage
+    driver: local
