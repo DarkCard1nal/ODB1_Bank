@@ -1,7 +1,7 @@
-﻿SET STATISTICS TIME, IO ON;
+﻿SET STATISTICS TIME, IO OFF;
 GO
 
-PRINT N'--- 1. Check the consistency of transaction records with the account balance ---';
+PRINT '--- 1. Check the consistency of transaction records with the account balance ---';
 SELECT a.account_id 
 FROM Account a
 LEFT JOIN (
@@ -395,20 +395,20 @@ GO
 PRINT '--- 3 queries with cascading actions ---';
 -- Creating the Customers table
 CREATE TABLE Customers (
-    customer_id INT PRIMARY KEY,
-    customer_name VARCHAR(100)
+	customer_id INT PRIMARY KEY,
+	customer_name VARCHAR(100)
 );
 GO
 
 -- Creating the Orders table with a foreign key referencing Customers
 CREATE TABLE Orders (
-    order_id INT PRIMARY KEY,
-    customer_id INT,
-    order_date DATETIME,
-    FOREIGN KEY (customer_id)
-    REFERENCES Customers(customer_id)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE
+	order_id INT PRIMARY KEY,
+	customer_id INT,
+	order_date DATETIME,
+	FOREIGN KEY (customer_id)
+	REFERENCES Customers(customer_id)
+	ON DELETE CASCADE
+	ON UPDATE CASCADE
 );
 GO
 
@@ -536,6 +536,133 @@ SELECT i.account_id, SUM(i.amount) AS total_interest
 FROM Interest i
 GROUP BY i.account_id
 HAVING SUM(i.amount) > 500;
+GO
+
+PRINT '--- Count records in tables ---';
+PRINT '--- Count records in Client table ---';
+SELECT 'Client' AS TableName, COUNT(*) AS RecordCount FROM Client;
+GO
+
+PRINT '--- Count records in Account table ---';
+SELECT 'Account' AS TableName, COUNT(*) AS RecordCount FROM Account;
+GO
+
+PRINT '--- Count records in CurrencyRate table ---';
+SELECT 'CurrencyRate' AS TableName, COUNT(*) AS RecordCount FROM CurrencyRate;
+GO
+
+PRINT '--- Count records in Transactions table ---';
+SELECT 'Transactions' AS TableName, COUNT(*) AS RecordCount FROM Transactions;
+GO
+
+PRINT '--- Count records in Interest table ---';
+SELECT 'Interest' AS TableName, COUNT(*) AS RecordCount FROM Interest;
+GO
+
+PRINT '--- 3 SQL queries using different aggregate functions ---';
+PRINT '--- Get average account balance per currency ---';
+SELECT currency, AVG(balance) AS average_balance
+FROM Account
+GROUP BY currency;
+GO
+
+PRINT '--- Get max transaction amount by transaction type ---';
+SELECT transaction_type, MAX(amount) AS max_transaction_amount
+FROM Transactions
+GROUP BY transaction_type;
+GO
+
+PRINT '--- Get total interest amount per account ---';
+SELECT account_id, SUM(amount) AS total_interest
+FROM Interest
+GROUP BY account_id;
+GO
+
+PRINT '--- 3 queries using window functions ---';
+PRINT '--- Row number of each account per client ---';
+SELECT 
+	client_id,
+	account_id,
+	currency,
+	balance,
+	ROW_NUMBER() OVER(PARTITION BY client_id ORDER BY balance DESC) AS account_rank
+FROM Account;
+GO
+
+PRINT '--- Account balance vs. average currency balance (windowed) ---';
+SELECT 
+	account_id,
+	currency,
+	balance,
+	AVG(balance) OVER(PARTITION BY currency) AS avg_currency_balance
+FROM Account;
+GO
+
+PRINT '--- Difference between current and previous interest amount per account ---';
+SELECT 
+	account_id,
+	calculation_date,
+	amount,
+	LAG(amount) OVER(PARTITION BY account_id ORDER BY calculation_date) AS previous_amount,
+	amount - LAG(amount) OVER(PARTITION BY account_id ORDER BY calculation_date) AS amount_difference
+FROM Interest;
+GO
+
+PRINT '--- 3 queries using string (text) functions ---';
+PRINT '--- Convert client name to uppercase ---';
+SELECT 
+	client_id,
+	name,
+	UPPER(name) AS name_uppercase
+FROM Client;
+GO
+
+PRINT '--- Extract domain from email ---';
+SELECT 
+	client_id,
+	email,
+	SUBSTRING(email, CHARINDEX('@', email) + 1, LEN(email)) AS domain
+FROM Client
+WHERE email IS NOT NULL;
+GO
+
+PRINT '--- Check if client name contains "Doe" ---';
+SELECT 
+	client_id,
+	name,
+	CASE 
+		WHEN CHARINDEX('Doe', UPPER(name)) > 0 THEN 'Yes'
+		ELSE 'No'
+	END AS contains_doe
+FROM Client;
+GO
+
+PRINT '--- 3 queries using functions to process the date ---';
+PRINT '--- Show accounts with creation year ---';
+SELECT 
+	account_id,
+	creation_date,
+	YEAR(creation_date) AS creation_year
+FROM Account;
+GO
+
+PRINT '--- Show number of days since transaction date ---';
+SELECT 
+	transaction_id,
+	transaction_date,
+	DATEDIFF(DAY, transaction_date, GETDATE()) AS days_since_transaction
+FROM Transactions;
+GO
+
+PRINT '--- Show transactions from current month ---';
+SELECT 
+	transaction_id,
+	transaction_date,
+	amount
+FROM Transactions
+WHERE 
+	MONTH(transaction_date) = MONTH(GETDATE())
+	AND YEAR(transaction_date) = YEAR(GETDATE());
 GO
 
 SET STATISTICS TIME, IO OFF;
