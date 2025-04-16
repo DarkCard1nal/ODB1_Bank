@@ -665,5 +665,87 @@ WHERE
 	AND YEAR(transaction_date) = YEAR(GETDATE());
 GO
 
+PRINT '--- Examples of using your own scalar functions ---';
+PRINT '--- Get client contact info using custom scalar function ---';
+SELECT 
+	client_id,
+	dbo.GetClientInfo(client_id) AS ClientContactInfo
+FROM Client;
+GO
+
+PRINT '--- Get client transaction category ---'; 
+SELECT 
+	c.client_id,
+	c.name,
+	dbo.GetClientCategory(c.client_id) AS ClientCategory
+FROM Client c;
+GO
+
+PRINT '--- Get bonus interest amount for each client ---';
+SELECT 
+	c.client_id,
+	c.name,
+	dbo.GetBonusInterest(c.client_id) AS BonusAmount
+FROM Client c;
+GO
+
+PRINT '--- Examples of using your own inline functions ---';
+PRINT '--- Show accounts for each client using inline function ---';
+SELECT 
+	c.client_id,
+	c.name,
+	a.account_id,
+	a.currency,
+	a.balance
+FROM Client c
+CROSS APPLY dbo.fn_GetClientAccounts(c.client_id) AS a;
+GO
+
+PRINT '--- Show recent transactions for each client ---';
+SELECT 
+	c.client_id,
+	c.name,
+	t.transaction_id,
+	t.amount,
+	t.transaction_date
+FROM Client c
+CROSS APPLY dbo.fn_GetRecentTransactions(c.client_id) AS t;
+GO
+
+PRINT '--- Show accounts with high interest amounts ---';
+SELECT 
+	a.account_id,
+	c.name AS client_name,
+	a.total_interest
+FROM dbo.fn_AccountsWithHighInterest() AS a
+JOIN Client c ON c.client_id = a.client_id;
+GO
+
+PRINT '--- Examples of using your own Multistate functions ---';
+PRINT '--- Transactions with large-amount flag for a client ---';
+SELECT * FROM dbo.fn_ClientTransactionsWithFlag(1);
+GO
+
+PRINT '--- Client accounts with total interest amount ---';
+SELECT * FROM dbo.fn_ClientAccountsWithInterest(2);
+GO
+
+PRINT '--- Currency exchange history from USD to UAH ---';
+SELECT * FROM dbo.fn_CurrencyExchangeHistory('USD', 'UAH');
+GO
+
+PRINT '--- Examples of using your own existing types functions ---';
+PRINT '--- Full name of client with ID = 1 ---';
+SELECT dbo.fn_GetClientName(1) AS FullName;
+GO
+
+PRINT '--- Transactions for client 2 above 500 ---';
+SELECT * FROM dbo.fn_TransactionsAboveAmount(2, 500.00);
+GO
+
+PRINT '--- Client accounts with transaction counts ---';
+SELECT * FROM dbo.fn_ClientAccountsWithTransactionCount(2);
+GO
+
 SET STATISTICS TIME, IO OFF;
 GO
