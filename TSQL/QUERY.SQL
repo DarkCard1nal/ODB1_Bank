@@ -1,4 +1,4 @@
-﻿SET STATISTICS TIME, IO OFF;
+﻿--SET STATISTICS TIME, IO ON;
 GO
 
 PRINT '--- 1. Check the consistency of transaction records with the account balance ---';
@@ -745,6 +745,299 @@ GO
 
 PRINT '--- Client accounts with transaction counts ---';
 SELECT * FROM dbo.fn_ClientAccountsWithTransactionCount(2);
+GO
+
+PRINT '--- Creating and analyzing indexing ---';
+PRINT '--- Create clustered index on Transactions(transaction_id) ---';
+CREATE CLUSTERED INDEX IX_Transactions_Clustered ON Transactions(transaction_id);
+GO
+
+PRINT '--- Create nonclustered index on Transactions (for 1 query) ---';
+-- For efficient GROUP BY and filtering in subqueries:
+CREATE NONCLUSTERED INDEX IX_Transactions_to_type ON Transactions(account_to_id, transaction_type, amount);
+CREATE NONCLUSTERED INDEX IX_Transactions_from_type ON Transactions(account_from_id, transaction_type, amount);
+-- Index for quick filtering transaction_type = 'Interest'
+CREATE NONCLUSTERED INDEX IX_Transactions_interest ON Transactions(account_to_id, transaction_type, amount);
+GO
+
+PRINT '--- Unique index for the phone column ---';
+CREATE UNIQUE INDEX IX_Client_Phone ON Client(phone);
+PRINT '--- Unique index for the email column ---';
+CREATE UNIQUE INDEX IX_Client_Email ON Client(email);
+GO
+
+PRINT '--- 4. For a given client, issue a report on all transactions with their accounts ---';
+DECLARE @client_id INT = 1;  -- Specify the client ID
+
+SELECT DISTINCT t.transaction_id, t.account_from_id, t.account_to_id, 
+	   t.transaction_type, t.amount, t.currency, t.transaction_date
+FROM Transactions t
+JOIN Account a ON t.account_from_id = a.account_id OR t.account_to_id = a.account_id
+WHERE a.client_id = @client_id
+ORDER BY t.transaction_date DESC;
+GO
+PRINT '--- Create nonclustered index with include on Transactions (for 4 query) ---';
+CREATE NONCLUSTERED INDEX IX_Transactions_ClientAccount
+ON Transactions(account_from_id)
+INCLUDE (
+	transaction_id,
+	account_to_id,
+	transaction_type,
+	amount,
+	currency,
+	transaction_date
+);
+GO
+PRINT '--- 4. For a given client, issue a report on all transactions with their accounts ---';
+DECLARE @client_id INT = 1;  -- Specify the client ID
+
+SELECT DISTINCT t.transaction_id, t.account_from_id, t.account_to_id, 
+	   t.transaction_type, t.amount, t.currency, t.transaction_date
+FROM Transactions t
+JOIN Account a ON t.account_from_id = a.account_id OR t.account_to_id = a.account_id
+WHERE a.client_id = @client_id
+ORDER BY t.transaction_date DESC;
+GO
+
+PRINT '--- Create a filtered index for the Transactions table, where the value of transaction_type is Deposit, Exchange, Transfer, Withdrawal, Interest ---';
+SET QUOTED_IDENTIFIER ON;
+-- 1. Deposit
+CREATE NONCLUSTERED INDEX IX_Transactions_Deposit
+ON Transactions(transaction_date)
+INCLUDE (
+	transaction_id,
+	client_id,
+	account_from_id,
+	account_to_id,
+	amount,
+	currency
+)
+WHERE transaction_type = 'Deposit';
+GO
+
+-- 2. Exchange
+CREATE NONCLUSTERED INDEX IX_Transactions_Exchange
+ON Transactions(transaction_date)
+INCLUDE (
+	transaction_id,
+	client_id,
+	account_from_id,
+	account_to_id,
+	amount,
+	currency
+)
+WHERE transaction_type = 'Exchange';
+GO
+
+-- 3. Transfer
+CREATE NONCLUSTERED INDEX IX_Transactions_Transfer
+ON Transactions(transaction_date)
+INCLUDE (
+	transaction_id,
+	client_id,
+	account_from_id,
+	account_to_id,
+	amount,
+	currency
+)
+WHERE transaction_type = 'Transfer';
+GO
+
+-- 4. Withdrawal
+CREATE NONCLUSTERED INDEX IX_Transactions_Withdrawal
+ON Transactions(transaction_date)
+INCLUDE (
+	transaction_id,
+	client_id,
+	account_from_id,
+	account_to_id,
+	amount,
+	currency
+)
+WHERE transaction_type = 'Withdrawal';
+GO
+
+-- 5. Interest
+CREATE NONCLUSTERED INDEX IX_Transactions_Interest_Tdate
+ON Transactions(transaction_date)
+INCLUDE (
+	transaction_id,
+	client_id,
+	account_from_id,
+	account_to_id,
+	amount,
+	currency
+)
+WHERE transaction_type = 'Interest';
+GO
+SET QUOTED_IDENTIFIER OFF;
+
+PRINT '--- CREATE NONCLUSTERED INDEX IX_To_Drop ---';
+CREATE NONCLUSTERED INDEX IX_To_Drop ON Account(balance);
+GO
+
+PRINT '--- Degree of index fragmentation ---';
+SELECT 
+	dbschemas.[name] AS [Schema],
+	dbtables.[name] AS [Table],
+	dbindexes.[name] AS [Index],
+	indexstats.index_type_desc AS [Index Type],
+	indexstats.avg_fragmentation_in_percent AS [Fragmentation %],
+	indexstats.page_count AS [Page Count]
+FROM sys.dm_db_index_physical_stats(DB_ID(), NULL, NULL, NULL, 'LIMITED') AS indexstats
+JOIN sys.tables dbtables ON indexstats.[object_id] = dbtables.[object_id]
+JOIN sys.schemas dbschemas ON dbtables.[schema_id] = dbschemas.[schema_id]
+JOIN sys.indexes AS dbindexes ON dbindexes.[object_id] = indexstats.[object_id]
+	AND indexstats.index_id = dbindexes.index_id
+WHERE indexstats.database_id = DB_ID()
+ORDER BY indexstats.avg_fragmentation_in_percent DESC;
+GO
+
+PRINT '--- REORGANIZE Client index---';
+ALTER INDEX [PK_Client] ON [dbo].[Client] REORGANIZE;
+GO
+
+PRINT '--- REBUILD Client index---';
+ALTER INDEX [PK_Transact] ON [dbo].[Transactions] REBUILD;
+GO
+
+PRINT '--- DROP INDEX IX_To_Drop ---';
+DROP INDEX IX_To_Drop ON [dbo].[Account];
+GO
+
+PRINT '--- Checking queries 1, 4, 5 after adding indexing ---';
+GO
+
+SET SHOWPLAN_ALL ON;
+GO
+
+PRINT '--- 1. Check the consistency of transaction records with the account balance ---';
+SELECT a.account_id 
+FROM Account a
+LEFT JOIN (
+	-- Counting all credits to the account (Deposit + received Exchanges)
+	SELECT account_to_id AS account_id, SUM(amount) AS total_deposited
+	FROM Transactions
+	WHERE transaction_type IN ('Deposit', 'Exchange', 'Transfer')
+	GROUP BY account_to_id
+) d ON a.account_id = d.account_id
+LEFT JOIN (
+	-- Counting all withdrawals from the account (Withdrawals + sent Exchanges)
+	SELECT account_from_id AS account_id, SUM(amount) AS total_withdrawn
+	FROM Transactions
+	WHERE transaction_type IN ('Withdrawal', 'Exchange', 'Transfer')
+	GROUP BY account_from_id
+) w ON a.account_id = w.account_id
+LEFT JOIN (
+	-- Calculating accrued interest (Interest)
+	SELECT account_to_id AS account_id, SUM(amount) AS total_interest
+	FROM Transactions
+	WHERE transaction_type = 'Interest'
+	GROUP BY account_to_id
+) i ON a.account_id = i.account_id
+WHERE a.balance <> (COALESCE(d.total_deposited, 0) + COALESCE(i.total_interest, 0) - COALESCE(w.total_withdrawn, 0));
+GO
+
+PRINT '--- 2. Find the account with the most transactions ---';
+SELECT TOP 1 account_id, COUNT(*) AS operation_count
+FROM (
+	SELECT account_from_id AS account_id FROM Transactions WHERE account_from_id IS NOT NULL
+	UNION ALL
+	SELECT account_to_id AS account_id FROM Transactions WHERE account_to_id IS NOT NULL
+) t
+GROUP BY account_id
+ORDER BY operation_count DESC;
+GO
+
+PRINT '--- 4. For a given client, issue a report on all transactions with their accounts ---';
+DECLARE @client_id INT = 1;  -- Specify the client ID
+
+SELECT DISTINCT t.transaction_id, t.account_from_id, t.account_to_id, 
+	   t.transaction_type, t.amount, t.currency, t.transaction_date
+FROM Transactions t
+JOIN Account a ON t.account_from_id = a.account_id OR t.account_to_id = a.account_id
+WHERE a.client_id = @client_id
+ORDER BY t.transaction_date DESC;
+GO
+
+SET SHOWPLAN_ALL OFF;
+GO
+
+PRINT '--- 1. Check the consistency of transaction records with the account balance ---';
+SELECT a.account_id 
+FROM Account a
+LEFT JOIN (
+	-- Counting all credits to the account (Deposit + received Exchanges)
+	SELECT account_to_id AS account_id, SUM(amount) AS total_deposited
+	FROM Transactions
+	WHERE transaction_type IN ('Deposit', 'Exchange', 'Transfer')
+	GROUP BY account_to_id
+) d ON a.account_id = d.account_id
+LEFT JOIN (
+	-- Counting all withdrawals from the account (Withdrawals + sent Exchanges)
+	SELECT account_from_id AS account_id, SUM(amount) AS total_withdrawn
+	FROM Transactions
+	WHERE transaction_type IN ('Withdrawal', 'Exchange', 'Transfer')
+	GROUP BY account_from_id
+) w ON a.account_id = w.account_id
+LEFT JOIN (
+	-- Calculating accrued interest (Interest)
+	SELECT account_to_id AS account_id, SUM(amount) AS total_interest
+	FROM Transactions
+	WHERE transaction_type = 'Interest'
+	GROUP BY account_to_id
+) i ON a.account_id = i.account_id
+WHERE a.balance <> (COALESCE(d.total_deposited, 0) + COALESCE(i.total_interest, 0) - COALESCE(w.total_withdrawn, 0));
+GO
+
+PRINT '--- 2. Find the account with the most transactions ---';
+SELECT TOP 1 account_id, COUNT(*) AS operation_count
+FROM (
+	SELECT account_from_id AS account_id FROM Transactions WHERE account_from_id IS NOT NULL
+	UNION ALL
+	SELECT account_to_id AS account_id FROM Transactions WHERE account_to_id IS NOT NULL
+) t
+GROUP BY account_id
+ORDER BY operation_count DESC;
+GO
+
+PRINT '--- 4. For a given client, issue a report on all transactions with their accounts ---';
+DECLARE @client_id INT = 1;  -- Specify the client ID
+
+SELECT DISTINCT t.transaction_id, t.account_from_id, t.account_to_id, 
+	   t.transaction_type, t.amount, t.currency, t.transaction_date
+FROM Transactions t
+JOIN Account a ON t.account_from_id = a.account_id OR t.account_to_id = a.account_id
+WHERE a.client_id = @client_id
+ORDER BY t.transaction_date DESC;
+GO
+
+PRINT '--- Audit of all indices ---';
+SELECT 
+	DB_NAME() AS [Database],
+	OBJECT_NAME(i.[object_id]) AS [Table],
+	i.name AS [Index],
+	i.type_desc AS [Index_type],
+	i.is_unique AS [Unique],
+	ps.avg_fragmentation_in_percent AS [Fragmentation_in_%],
+	ps.page_count AS [Number_of_pages] 
+FROM 
+	sys.indexes AS i 
+INNER JOIN 
+	sys.dm_db_index_physical_stats(DB_ID(), NULL, NULL, NULL, 'LIMITED') AS ps
+	ON i.[object_id] = ps.[object_id] AND i.index_id = ps.index_id
+WHERE 
+	i.type > 0 AND i.is_hypothetical = 0 
+ORDER BY 
+	ps.avg_fragmentation_in_percent DESC;
+GO
+
+PRINT '--- REORGANIZE UQ_Client_Email index---';
+ALTER INDEX [UQ_Client_Email] ON [dbo].[Client] REORGANIZE;
+GO
+
+PRINT '--- REBUILD UQ_CurrencyRate_Pair index---';
+ALTER INDEX [UQ_CurrencyRate_Pair] ON [dbo].[CurrencyRate] REBUILD;
 GO
 
 SET STATISTICS TIME, IO OFF;

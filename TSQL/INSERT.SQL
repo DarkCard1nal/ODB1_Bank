@@ -379,6 +379,41 @@ VALUES
 ('XZK', 'IDR', 97200.09),
 ('PHP', 'PKR', 39365.14);
 
+-- Заповнення таблиць Client, Account, CurrencyRate значеннями до @Max
+DECLARE @i INT = 100;
+DECLARE @Max INT = 10000;
+
+WHILE @i <= @Max
+BEGIN
+	INSERT INTO Client (name, address, phone, email)
+	VALUES (
+		CONCAT('Client_', @i),
+		CONCAT('Address_', @i),
+		380000000000 + @i, -- Унікальні номери телефонів
+		CONCAT('client', @i, '@example.com') -- Унікальні email
+	);
+	INSERT INTO Account (client_id, currency, balance)
+	VALUES (
+		@i,
+		CASE (ABS(CHECKSUM(NEWID())) % 3)
+			WHEN 0 THEN 'USD'
+			WHEN 1 THEN 'EUR'
+			ELSE 'UAH'
+		END,
+		CAST(RAND() * 10000 AS DECIMAL(18,2))
+	);
+	IF @i % 2 = 0
+	BEGIN
+		DECLARE @rate DECIMAL(18,2) = CAST(RAND(CHECKSUM(NEWID())) * 30 + 1 AS DECIMAL(18,2));
+		INSERT INTO CurrencyRate (currency_from, currency_to, rate)
+		VALUES
+			(CONCAT('CR', @i), CONCAT('RC', @i), @rate),
+			(CONCAT('RC', @i), CONCAT('CR', @i), CAST(1.0 / @rate AS DECIMAL(18,4)));
+	END
+
+	SET @i += 1;
+END;
+
 -- Додавання записів у таблицю Transactions типу 'Interest' для кожного раунку для нарахування відсотків в Interest
 INSERT INTO Transactions (client_id, account_from_id, account_to_id, currency_rate_id, transaction_type, amount, currency)
 SELECT 
