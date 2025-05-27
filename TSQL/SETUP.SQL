@@ -11,6 +11,7 @@ CREATE TABLE Client (
 	CONSTRAINT CHK_Client_Email_Format CHECK (email LIKE '%@%'),
 	CONSTRAINT PK_Client PRIMARY KEY CLUSTERED (client_id)
 );
+GO
 
 -- Створення таблиці Account
 CREATE TABLE Account (
@@ -22,6 +23,7 @@ CREATE TABLE Account (
 	CONSTRAINT FK_Account_Client FOREIGN KEY (client_id) REFERENCES Client(client_id),
 	CONSTRAINT PK_Account PRIMARY KEY CLUSTERED (account_id)
 );
+GO
 
 -- Створення таблиці CurrencyRate
 CREATE TABLE CurrencyRate (
@@ -31,8 +33,10 @@ CREATE TABLE CurrencyRate (
 	rate DECIMAL(18,2) NOT NULL,
 	rate_date DATE CONSTRAINT DF_CurrencyRate_RateDate DEFAULT CONVERT(DATE, GETDATE()),
 	CONSTRAINT UQ_CurrencyRate_Pair UNIQUE (currency_from, currency_to, rate_date),
+	CONSTRAINT CHK_Currency_From_To_Different CHECK (currency_from <> currency_to),  -- Tuple constraint
 	CONSTRAINT PK_CurrencyRate PRIMARY KEY CLUSTERED (currency_rate_id)
 );
+GO
 
 -- Створення таблиці Transactions
 CREATE TABLE Transactions (
@@ -51,6 +55,7 @@ CREATE TABLE Transactions (
 	CONSTRAINT FK_Transactions_CurrencyRate FOREIGN KEY (currency_rate_id) REFERENCES CurrencyRate(currency_rate_id),
 	CONSTRAINT PK_Transactions PRIMARY KEY CLUSTERED (transaction_id)
 );
+GO
 
 -- Створення таблиці Interest
 CREATE TABLE Interest (
@@ -64,6 +69,7 @@ CREATE TABLE Interest (
 	CONSTRAINT FK_Interest_Transactions FOREIGN KEY (transaction_id) REFERENCES Transactions(transaction_id),
 	CONSTRAINT PK_Interest PRIMARY KEY CLUSTERED (interest_id)
 );
+GO
 
 -- Створення таблиці AuditBalanceMismatch (для технічних записів, журнал аудиту та виправлення балансу рахунків)
 CREATE TABLE AuditBalanceMismatch (
@@ -74,3 +80,26 @@ CREATE TABLE AuditBalanceMismatch (
 	discrepancy DECIMAL(18,2),
 	log_date DATETIME2 DEFAULT SYSDATETIME()
 );
+GO
+
+-- Створення таблиці DDL_Log (для технічних записів, журнал DDL операцій CREATE, DROP, ALTER)
+CREATE TABLE DDL_Log (
+	log_id INT IDENTITY PRIMARY KEY,
+	event_type NVARCHAR(100),
+	schema_name NVARCHAR(100),
+	object_name NVARCHAR(100),
+	user_name NVARCHAR(100),
+	event_time DATETIME DEFAULT GETDATE()
+);
+GO
+
+-- Створення таблиці LogonAudit (для технічних записів, журнал аудиту логінів)
+CREATE TABLE LogonAudit (
+	audit_id INT IDENTITY PRIMARY KEY,
+	login_time DATETIME DEFAULT GETDATE(),
+	login_name SYSNAME,
+	host_name NVARCHAR(255),
+	app_name NVARCHAR(255),
+	client_ip NVARCHAR(255)
+);
+GO
