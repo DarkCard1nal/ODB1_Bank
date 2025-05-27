@@ -64,3 +64,13 @@ CREATE TABLE Interest (
 	CONSTRAINT FK_Interest_Transactions FOREIGN KEY (transaction_id) REFERENCES Transactions(transaction_id),
 	CONSTRAINT PK_Interest PRIMARY KEY CLUSTERED (interest_id)
 );
+
+-- Створення таблиці AuditBalanceMismatch (для технічних записів, журнал аудиту та виправлення балансу рахунків)
+CREATE TABLE AuditBalanceMismatch (
+	audit_id INT IDENTITY PRIMARY KEY,
+	account_id INT,
+	actual_balance DECIMAL(18,2),
+	calculated_balance DECIMAL(18,2),
+	discrepancy DECIMAL(18,2),
+	log_date DATETIME2 DEFAULT SYSDATETIME()
+);

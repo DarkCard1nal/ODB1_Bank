@@ -13,9 +13,13 @@ DELETE FROM Account;
 -- Видалення всіх записів із таблиці Client
 DELETE FROM Client;
 
+-- Видалення всіх записів із таблиці AuditBalanceMismatch
+DELETE FROM AuditBalanceMismatch;
+
 -- Видалення таблиць у правильному порядку (у разі повного видалення структури БД)
 DROP TABLE Interest;
 DROP TABLE Transactions;
 DROP TABLE CurrencyRate;
 DROP TABLE Account;
 DROP TABLE Client;
+DROP TABLE AuditBalanceMismatch;

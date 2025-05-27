@@ -39,6 +39,9 @@ services:
       echo 'Running PROCEDURES.SQL and saving outputP...' && \
       /opt/mssql-tools18/bin/sqlcmd -S mssql -U sa -P 'StrongPass123!' -C -i /app/PROCEDURES.SQL -o /app/outputP.txt && \
       sleep 1 && \
+      echo 'Running CUSOR.SQL and saving outputC...' && \
+      /opt/mssql-tools18/bin/sqlcmd -S mssql -U sa -P 'StrongPass123!' -C -i /app/CUSOR.SQL -o /app/outputC.txt && \
+      sleep 1 && \
       echo 'End'
       "
 
